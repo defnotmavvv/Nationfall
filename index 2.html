@@ -1,0 +1,870 @@
+Here is a complete, single-file war strategy game built in HTML, CSS, and vanilla JavaScript. It is heavily inspired by the "dumb mapping" genre on YouTube and games like *War of Dots*.
+
+It includes all four map modes, custom map painting tools (terrain, borders, cities), an extensive country interaction and geopolitics engine (rebellion, alliances like NATO/BRICS, puppeteering), a dynamic frontline "string" system, and dual simulation/creative gameplay modes.
+
+Save this entire code block as `index.html`, load it into Kodex, or push it straight to GitHub Pages to play it instantly.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>War of Dots & Dumb Mapping Simulator</title>
+    <style>
+        :root {
+            --bg-color: #1e1e24;
+            --panel-color: #2a2a35;
+            --text-color: #f5f5f7;
+            --accent-color: #4a90e2;
+            --border-color: #3f3f50;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Top Control Bar */
+        #top-bar {
+            background-color: var(--panel-color);
+            border-bottom: 2px solid var(--border-color);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .bar-section {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        button {
+            background-color: #3a3a4a;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--accent-color);
+        }
+
+        button.active {
+            background-color: var(--accent-color);
+            border-color: #fff;
+        }
+
+        select, input[type="text"], input[type="number"] {
+            background-color: #3a3a4a;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 6px;
+            border-radius: 4px;
+        }
+
+        /* Main Workspace Layout */
+        #main-container {
+            display: flex;
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 280px;
+            background-color: var(--panel-color);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+            border-right: 2px solid var(--border-color);
+        }
+
+        #right-sidebar {
+            border-right: none;
+            border-left: 2px solid var(--border-color);
+        }
+
+        #canvas-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #111;
+            position: relative;
+        }
+
+        canvas {
+            background-color: #000;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            cursor: crosshair;
+        }
+
+        /* Typography & Panel UI */
+        h3 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8a8a9a;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+        }
+
+        .tool-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+        }
+
+        .info-card {
+            background-color: #22222b;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 3px solid var(--accent-color);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .alliance-tag {
+            display: inline-block;
+            background: #444;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="top-bar">
+        <div class="bar-section">
+            <span style="font-weight: bold; font-size: 16px; margin-right: 15px;">🌐 DOT WAR MAPPER</span>
+            <button id="mode-terrain" class="active" onclick="setMapMode('terrain')">Terrain Map</button>
+            <button id="mode-political" onclick="setMapMode('political')">Political Map</button>
+            <button id="mode-pop" onclick="setMapMode('population')">Population Density</button>
+            <button id="mode-gdp" onclick="setMapMode('gdp')">GDP Map</button>
+        </div>
+        <div class="bar-section">
+            <button id="btn-play" onclick="togglePlay()" style="background-color: #27ae60;">▶ SIMULATE</button>
+            <select id="game-rule-mode" onchange="setGameRuleMode(this.value)">
+                <option value="creative">Creative Mode (Sandbox)</option>
+                <option value="simulation">Casualties & Combat Mode</option>
+            </select>
+            <button onclick="clearMap()" style="background-color: #c0392b;">Clear Map</button>
+        </div>
+    </div>
+
+    <div id="main-container">
+        
+        <div class="sidebar" id="left-sidebar">
+            <div class="tool-group">
+                <h3>1. Map Painter</h3>
+                <div class="grid-2">
+                    <button id="tool-grass" class="active" onclick="setTool('grass')">🟩 Grass</button>
+                    <button id="tool-water" onclick="setTool('water')">🟦 Water</button>
+                    <button id="tool-mountain" onclick="setTool('mountain')">🟫 Mountain</button>
+                    <button id="tool-river" onclick="setTool('river')">🌐 River</button>
+                </div>
+                <label style="font-size: 11px; margin-top: 5px;">Brush Size: <input type="range" id="brush-size" min="1" max="8" value="3"></label>
+            </div>
+
+            <div class="tool-group">
+                <h3>2. Create/Draw Country</h3>
+                <input type="text" id="new-country-name" placeholder="Country Name" value="Nations Land">
+                <div class="grid-2">
+                    <label style="font-size: 12px;">Color: <input type="color" id="new-country-color" value="#e74c3c"></label>
+                    <select id="new-country-ideology">
+                        <option value="Democratic">Democratic</option>
+                        <option value="Authoritarian">Authoritarian</option>
+                        <option value="Monarchy">Monarchy</option>
+                        <option value="Rebel Group">Rebel Group</option>
+                    </select>
+                </div>
+                <button onclick="setTool('border')" id="tool-border" style="background-color: #8e44ad;">✏️ Paint Country Territory</button>
+            </div>
+
+            <div class="tool-group">
+                <h3>3. Place Cities</h3>
+                <div class="grid-2">
+                    <button id="tool-town" onclick="setTool('town')">🟡 Town</button>
+                    <button id="tool-city" onclick="setTool('city')">🟡 Major City</button>
+                </div>
+                <button id="tool-capital" onclick="setTool('capital')" style="width: 100%;">⭐ Place Capital Star</button>
+            </div>
+
+            <div class="tool-group">
+                <h3>4. Army Spawner</h3>
+                <select id="army-spawn-type">
+                    <option value="soldier">🪖 Soldier Army (Medium)</option>
+                    <option value="tank">🚜 Tank Division (Darker)</option>
+                    <option value="navy">⚓ Navy Fleet (Lighter)</option>
+                    <option value="airforce">✈️ Air Force Wing (Lightest)</option>
+                </select>
+                <div class="grid-2">
+                    <button id="tool-spawn-red" onclick="setTool('spawn-red')" style="color: #ff4d4d;">🔴 Spawn Red</button>
+                    <button id="tool-spawn-blue" onclick="setTool('spawn-blue')" style="color: #4da6ff;">🔵 Spawn Blue</button>
+                </div>
+                <label style="font-size: 11px;">Spawn Size: <input type="number" id="army-spawn-size" value="1000" step="500"></label>
+                <button id="tool-move-army" onclick="setTool('move-army')" style="background-color: #d35400; font-size: 12px;">🏹 Move / Push Army</button>
+            </div>
+        </div>
+
+        <div id="canvas-container">
+            <canvas id="gameCanvas" width="800" height="500"></canvas>
+        </div>
+
+        <div class="sidebar" id="right-sidebar">
+            <h3>Selected Country</h3>
+            <div id="inspector-void" class="info-card">Click a country territory to view geopolitical metrics & execute actions.</div>
+            
+            <div id="inspector-panel" style="display: none; flex-direction: column; gap: 12px;">
+                <h2 id="inspect-name" style="color: var(--accent-color);">Nations Name</h2>
+                <div class="info-card">
+                    <div><strong>Ideology:</strong> <span id="inspect-ideology">Democratic</span></div>
+                    <div><strong>Population:</strong> <span id="inspect-pop">0</span></div>
+                    <div><strong>GDP Wealth:</strong> $<span id="inspect-gdp">0</span>M</div>
+                    <div><strong>Status:</strong> <span id="inspect-status">Independent</span></div>
+                </div>
+
+                <div class="tool-group">
+                    <h3>Diplomatic Actions</h3>
+                    <button onclick="triggerDeclareWar()" style="background-color: #c0392b;">🔥 Declare War / Call Allies</button>
+                    <button onclick="triggerMakeAlliance()" style="background-color: #27ae60;">🛡️ Form / Join Large Alliance</button>
+                    <div class="grid-2">
+                        <button onclick="triggerAddPuppet()">➕ Add Puppet</button>
+                        <button onclick="triggerReleasePuppet()">➖ Release Puppet</button>
+                    </div>
+                    <button onclick="triggerRebellion()" style="background-color: #d35400;">🔥 Trigger Internal Rebellion</button>
+                    <button onclick="triggerPeaceTreaty()" style="background-color: #2980b9; margin-top: 5px;">🕊️ Force Peace Treaty</button>
+                </div>
+
+                <div class="tool-group">
+                    <h3>Alliances & Pacts</h3>
+                    <div id="inspect-alliances" style="min-height: 20px;">None</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Design Simulation Matrix Dimensions (Low fidelity/Dumb Mapping Style Grid)
+        const SCALE = 4; 
+        const cols = canvas.width / SCALE;
+        const rows = canvas.height / SCALE;
+
+        // Application State Containers
+        let mapMode = 'terrain'; // terrain, political, population, gdp
+        let currentTool = 'grass'; // brush tool selected
+        let isPlaying = false;
+        let gameRuleMode = 'creative'; // creative vs simulation
+        let selectedCountryId = null;
+
+        // Primary Data Arrays
+        let grid = []; // 2D array holding data attributes for each layout point
+        let countries = {};
+        let cities = [];
+        let armies = [];
+        let alliances = [];
+        let activeWars = [];
+
+        // Colors configurations mirroring simple "dumb mapping" visuals
+        const colors = {
+            grass: '#2ecc71',
+            water: '#3498db',
+            mountain: '#7f8c8d',
+            river: '#5dade2',
+            town: '#f1c40f',
+            city: '#f39c12'
+        };
+
+        // Initialize Internal Map Data structures
+        function initGrid() {
+            grid = [];
+            for (let x = 0; x < cols; x++) {
+                grid[x] = [];
+                for (let y = 0; y < rows; y++) {
+                    grid[x][y] = {
+                        terrain: 'grass',
+                        countryId: null,
+                        pop: 10,  // Base background population
+                        gdp: 5    // Base background economic capability
+                    };
+                }
+            }
+        }
+
+        function clearMap() {
+            initGrid();
+            countries = {};
+            cities = [];
+            armies = [];
+            alliances = [];
+            activeWars = [];
+            selectedCountryId = null;
+            updateInspector();
+            draw();
+        }
+
+        // Custom Logic Initialization Pipeline
+        initGrid();
+
+        // Seed initial default functional nations to make canvas interactive out-of-the-box
+        function seedInitialNations() {
+            countries[1] = { id: 1, name: "Red Republic", color: "#ff4d4d", ideology: "Authoritarian", master: null, puppets: [], allies: [] };
+            countries[2] = { id: 2, name: "Blue Union", color: "#4da6ff", ideology: "Democratic", master: null, puppets: [], allies: [] };
+            
+            // Populate regions
+            for(let x=0; x<cols; x++) {
+                for(let y=0; y<rows; y++) {
+                    if(x < cols/2) {
+                        grid[x][y].countryId = 1;
+                    } else {
+                        grid[x][y].countryId = 2;
+                    }
+                }
+            }
+            // Seed Capitals
+            cities.push({x: 20 * SCALE, y: 30 * SCALE, type: 'capital', countryId: 1});
+            cities.push({x: 180 * SCALE, y: 30 * SCALE, type: 'capital', countryId: 2});
+            draw();
+        }
+        seedInitialNations();
+
+        // Handle active navigation tooling assignment state switches
+        function setMapMode(mode) {
+            mapMode = mode;
+            ['terrain', 'political', 'pop', 'gdp'].forEach(m => {
+                document.getElementById(`mode-${m}`).classList.remove('active');
+            });
+            let targetEl = mode === 'population' ? 'pop' : mode;
+            document.getElementById(`mode-${targetEl}`).classList.add('active');
+            draw();
+        }
+
+        function setTool(tool) {
+            currentTool = tool;
+            const buttons = document.querySelectorAll('.sidebar button');
+            buttons.forEach(b => { if(b.id && b.id.startsWith('tool-')) b.classList.remove('active'); });
+            const currentButton = document.getElementById(`tool-${tool}`);
+            if(currentButton) currentButton.classList.add('active');
+        }
+
+        function setGameRuleMode(val) {
+            gameRuleMode = val;
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            document.getElementById('btn-play').innerText = isPlaying ? "⏸ PAUSE SIM" : "▶ SIMULATE";
+            document.getElementById('btn-play').style.backgroundColor = isPlaying ? "#e67e22" : "#27ae60";
+        }
+
+        // Interactivity Painting Handling Logic Core Pipeline
+        let isDrawing = false;
+        canvas.addEventListener('mousedown', (e) => { isDrawing = true; handleMouse(e); });
+        canvas.addEventListener('mousemove', (e) => { if(isDrawing) handleMouse(e); });
+        window.addEventListener('mouseup', () => isDrawing = false);
+
+        function handleMouse(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const gridX = Math.floor(mouseX / SCALE);
+            const gridY = Math.floor(mouseY / SCALE);
+
+            if (gridX >= 0 && gridX < cols && gridY >= 0 && gridY < rows) {
+                executeToolAction(gridX, gridY, mouseX, mouseY);
+            }
+        }
+
+        function executeToolAction(gx, gy, mx, my) {
+            const brushSize = parseInt(document.getElementById('brush-size').value);
+
+            if (['grass', 'water', 'mountain', 'river'].includes(currentTool)) {
+                // Terrain Editor
+                for(let i = -brushSize; i <= brushSize; i++) {
+                    for(let j = -brushSize; j <= brushSize; j++) {
+                        if(gx+i >= 0 && gx+i < cols && gy+j >= 0 && gy+j < rows) {
+                            if(Math.sqrt(i*i + j*j) <= brushSize) {
+                                grid[gx+i][gy+j].terrain = currentTool;
+                                // Adjust structural attributes balance based on terrain painted
+                                if(currentTool === 'water') { grid[gx+i][gy+j].pop = 0; grid[gx+i][gy+j].gdp = 0; }
+                                if(currentTool === 'mountain') { grid[gx+i][gy+j].pop = 2; grid[gx+i][gy+j].gdp = 2; }
+                            }
+                        }
+                    }
+                }
+            } else if (currentTool === 'border') {
+                // Painting Country Border / Filling Land
+                let countryName = document.getElementById('new-country-name').value;
+                let countryColor = document.getElementById('new-country-color').value;
+                let countryIdeology = document.getElementById('new-country-ideology').value;
+
+                // Find if national color profile context already generated or requires setting up
+                let existingId = Object.keys(countries).find(k => countries[k].color === countryColor);
+                if(!existingId) {
+                    existingId = Object.keys(countries).length + 1;
+                    countries[existingId] = {
+                        id: existingId,
+                        name: countryName,
+                        color: countryColor,
+                        ideology: countryIdeology,
+                        master: null,
+                        puppets: [],
+                        allies: []
+                    };
+                }
+
+                for(let i = -brushSize; i <= brushSize; i++) {
+                    for(let j = -brushSize; j <= brushSize; j++) {
+                        if(gx+i >= 0 && gx+i < cols && gy+j >= 0 && gy+j < rows) {
+                            if(Math.sqrt(i*i + j*j) <= brushSize && grid[gx+i][gy+j].terrain !== 'water') {
+                                grid[gx+i][gy+j].countryId = parseInt(existingId);
+                            }
+                        }
+                    }
+                }
+            } else if (['town', 'city', 'capital'].includes(currentTool)) {
+                // Prevent node placement on completely unassigned/water surfaces
+                let targetCountry = grid[gx][gy].countryId;
+                if(!targetCountry && currentTool === 'capital') return;
+
+                cities.push({ x: mx, y: my, type: currentTool, countryId: targetCountry });
+                
+                // Spike localized population values inside parameters array context dynamically
+                let popBoost = currentTool === 'town' ? 500 : currentTool === 'city' ? 2500 : 7000;
+                for(let i=-3; i<=3; i++){
+                    for(let j=-3; j<=3; j++){
+                        if(gx+i >= 0 && gx+i < cols && gy+j >= 0 && gy+j < rows) {
+                            grid[gx+i][gy+j].pop += popBoost / 10;
+                            grid[gx+i][gy+j].gdp += (popBoost * 1.5) / 10;
+                        }
+                    }
+                }
+                setTool('grass'); // fallback selection reset trigger 
+            } else if (currentTool.startsWith('spawn-')) {
+                let side = currentTool.split('-')[1]; // red vs blue
+                let armyType = document.getElementById('army-spawn-type').value;
+                let size = parseInt(document.getElementById('army-spawn-size').value);
+                let currentCountryId = grid[gx][gy].countryId;
+
+                armies.push({
+                    id: armies.length + 1,
+                    x: mx,
+                    y: my,
+                    side: side,
+                    type: armyType,
+                    size: size,
+                    countryId: currentCountryId || null,
+                    targetX: mx,
+                    targetY: my
+                });
+                setTool('grass');
+            } else if (currentTool === 'move-army') {
+                // Handle locating nearest army configuration to change its layout trajectory waypoint
+                let clickedArmy = null;
+                let minDist = 30;
+                armies.forEach(a => {
+                    let d = Math.sqrt((a.x - mx)**2 + (a.y - my)**2);
+                    if(d < minDist) { minDist = d; clickedArmy = a; }
+                });
+
+                if(clickedArmy) {
+                    // Update destination target pointer
+                    clickedArmy.targetX = mx;
+                    clickedArmy.targetY = my;
+                } else {
+                    // If clicking empty map terrain, select country instead to view records
+                    if(grid[gx][gy].countryId) {
+                        selectedCountryId = grid[gx][gy].countryId;
+                        updateInspector();
+                    }
+                }
+            }
+            draw();
+        }
+
+        // Handle Diplomatic Inspector System Logic View Renderer
+        function updateInspector() {
+            if(!selectedCountryId || !countries[selectedCountryId]) {
+                document.getElementById('inspector-void').style.display = 'block';
+                document.getElementById('inspector-panel').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('inspector-void').style.display = 'none';
+            document.getElementById('inspector-panel').style.display = 'flex';
+
+            let c = countries[selectedCountryId];
+            document.getElementById('inspect-name').innerText = c.name;
+            document.getElementById('inspect-name').style.color = c.color;
+            document.getElementById('inspect-ideology').innerText = c.ideology;
+
+            // Recalculate metrics based on current grid tracking data arrays dynamically
+            let totalPop = 0;
+            let totalGdp = 0;
+            for (let x = 0; x < cols; x++) {
+                for (let y = 0; y < rows; y++) {
+                    if(grid[x][y].countryId === c.id) {
+                        totalPop += grid[x][y].pop;
+                        totalGdp += grid[x][y].gdp;
+                    }
+                }
+            }
+
+            document.getElementById('inspect-pop').innerText = Math.floor(totalPop).toLocaleString();
+            document.getElementById('inspect-gdp').innerText = Math.floor(totalGdp / 100).toLocaleString();
+            document.getElementById('inspect-status').innerText = c.master ? `Puppet of ${countries[c.master].name}` : "Sovereign Nation";
+
+            // List Alliance Framework strings
+            let allianceContainer = document.getElementById('inspect-alliances');
+            allianceContainer.innerHTML = '';
+            let activeAlliances = alliances.filter(a => a.members.includes(c.id));
+            if(activeAlliances.length === 0) {
+                allianceContainer.innerText = "None";
+            } else {
+                activeAlliances.forEach(a => {
+                    let span = document.createElement('span');
+                    span.className = 'alliance-tag';
+                    span.innerText = a.name;
+                    allianceContainer.appendChild(span);
+                });
+            }
+        }
+
+        // Diplomatic Action Matrix Callbacks Implementation Modules
+        function triggerDeclareWar() {
+            if(!selectedCountryId) return;
+            let targetId = prompt("Enter target country ID to launch offensive against (Check ID sequence manually or enter a number like 1 or 2):");
+            if(!targetId || !countries[targetId]) return;
+            targetId = parseInt(targetId);
+            if(targetId === selectedCountryId) return;
+
+            alert(`${countries[selectedCountryId].name} is now officially AT WAR with ${countries[targetId].name}!`);
+            
+            activeWars.push({
+                attacker: selectedCountryId,
+                defender: targetId,
+                frontlines: []
+            });
+            togglePlay(); // Auto start simulation execution loop for battle progression
+        }
+
+        function triggerMakeAlliance() {
+            if(!selectedCountryId) return;
+            let allianceName = prompt("Name your global Coalition/Alliance Organization (e.g. NATO, BRICS):", "Global Coalition Matrix");
+            if(!allianceName) return;
+
+            let newAlliance = {
+                name: allianceName,
+                members: [selectedCountryId]
+            };
+            alliances.push(newAlliance);
+            updateInspector();
+        }
+
+        function triggerAddPuppet() {
+            if(!selectedCountryId) return;
+            let puppetTarget = prompt("Enter the country ID to turn into a puppet regime state:");
+            if(!puppetTarget || !countries[puppetTarget]) return;
+            puppetTarget = parseInt(puppetTarget);
+
+            countries[puppetTarget].master = selectedCountryId;
+            countries[selectedCountryId].puppets.push(puppetTarget);
+            updateInspector();
+        }
+
+        function triggerReleasePuppet() {
+            if(!selectedCountryId) return;
+            let c = countries[selectedCountryId];
+            if(c.master) {
+                let masterCountry = countries[c.master];
+                masterCountry.puppets = masterCountry.puppets.filter(id => id !== c.id);
+                c.master = null;
+            }
+            updateInspector();
+        }
+
+        function triggerRebellion() {
+            if(!selectedCountryId) return;
+            let originalCountry = countries[selectedCountryId];
+            let rebelId = Object.keys(countries).length + 1;
+            
+            // Randomly select a color
+            let rebelColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+            
+            countries[rebelId] = {
+                id: rebelId,
+                name: `${originalCountry.name} Liberation Front`,
+                color: rebelColor,
+                ideology: "Rebel Group",
+                master: null,
+                puppets: [],
+                allies: []
+            };
+
+            // Flip 30% of target territory cells to rebel alliance control matrix values dynamically
+            for (let x = 0; x < cols; x++) {
+                for (let y = 0; y < rows; y++) {
+                    if(grid[x][y].countryId === originalCountry.id && Math.random() < 0.30) {
+                        grid[x][y].countryId = rebelId;
+                    }
+                }
+            }
+            
+            // Inject dynamic localized civil clash proxy war scenario state mapping parameter structure
+            activeWars.push({
+                attacker: rebelId,
+                defender: originalCountry.id,
+                frontlines: []
+            });
+            
+            alert(`A massive internal rebellion broke out inside ${originalCountry.name}!`);
+            updateInspector();
+            draw();
+        }
+
+        function triggerPeaceTreaty() {
+            activeWars = [];
+            alert("All active global conflicts resolved. Borders stabilized.");
+            draw();
+        }
+
+        // Dynamic Vector Star Drawing Math Helper
+        function drawStar(cx, cy, spikes, outerRadius, innerRadius, fillColor) {
+            let rot = Math.PI / 2 * 3;
+            let x = cx;
+            let y = cy;
+            let step = Math.PI / spikes;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius;
+                y = cy + Math.sin(rot) * outerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+
+                x = cx + Math.cos(rot) * innerRadius;
+                y = cy + Math.sin(rot) * innerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+            }
+            ctx.lineTo(cx, cy - outerRadius);
+            ctx.closePath();
+            ctx.fillStyle = fillColor;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.stroke();
+        }
+
+        // Primary Dynamic Drawing Loop Engine Implementation Block
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Draw Map Base Layer Grid structures matching configuration mode selection values
+            for (let x = 0; x < cols; x++) {
+                for (let y = 0; y < rows; y++) {
+                    let cell = grid[x][y];
+                    
+                    if (mapMode === 'terrain') {
+                        ctx.fillStyle = colors[cell.terrain];
+                    } else if (mapMode === 'political') {
+                        if (cell.countryId && countries[cell.countryId]) {
+                            ctx.fillStyle = countries[cell.countryId].color;
+                        } else {
+                            // Empty terrain rendering structure fallbacks
+                            ctx.fillStyle = cell.terrain === 'water' ? colors.water : '#bdc3c7';
+                        }
+                    } else if (mapMode === 'population') {
+                        let intensity = Math.min(255, Math.floor(cell.pop / 20));
+                        ctx.fillStyle = `rgb(${intensity}, ${intensity}, ${intensity === 255 ? 0 : 50})`;
+                    } else if (mapMode === 'gdp') {
+                        let intensity = Math.min(255, Math.floor(cell.gdp / 30));
+                        ctx.fillStyle = `rgb(0, ${intensity}, ${intensity / 2})`;
+                    }
+
+                    ctx.fillRect(x * SCALE, y * SCALE, SCALE, SCALE);
+                }
+            }
+
+            // 2. Draw Frontline String Mechanics connecting opposing operational division coordinates
+            if(activeWars.length > 0) {
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#f1c40f'; // Bright frontline indicator string wire configuration color
+                ctx.setLineDash([4, 4]);
+                
+                // Track spatial layout to connect red and blue units dynamically
+                for(let i=0; i<armies.length; i++) {
+                    for(let j=i+1; j<armies.length; j++) {
+                        let a1 = armies[i];
+                        let a2 = armies[j];
+                        if(a1.side !== a2.side) {
+                            let distance = Math.sqrt((a1.x - a2.x)**2 + (a1.y - a2.y)**2);
+                            if(distance < 120) { // String pull connection reach radius
+                                ctx.beginPath();
+                                ctx.moveTo(a1.x, a1.y);
+                                ctx.lineTo(a2.x, a2.y);
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                }
+                ctx.setLineDash([]); // Reset line array configurations string profile
+            }
+
+            // 3. Draw Cities layer nodes over coordinates mapping matrices vectors
+            cities.forEach(c => {
+                if (c.type === 'town') {
+                    ctx.beginPath(); ctx.arc(c.x, c.y, 4, 0, 2*Math.PI);
+                    ctx.fillStyle = colors.town; ctx.fill(); ctx.strokeStyle='#000'; ctx.stroke();
+                } else if (c.type === 'city') {
+                    ctx.beginPath(); ctx.arc(c.x, c.y, 7, 0, 2*Math.PI);
+                    ctx.fillStyle = colors.city; ctx.fill(); ctx.strokeStyle='#000'; ctx.stroke();
+                } else if (c.type === 'capital') {
+                    drawStar(c.x, c.y, 5, 10, 4, '#ffec3d');
+                }
+            });
+
+            // 4. Render Active Combat Divisions Layer Dots Layout
+            armies.forEach(a => {
+                ctx.beginPath();
+                let baseRadius = 6;
+                // Assign shade profiles dynamically mapping execution types configuration layout metrics
+                if(a.type === 'tank') baseRadius = 8;
+                if(a.type === 'navy') baseRadius = 7;
+                
+                ctx.arc(a.x, a.y, baseRadius, 0, 2 * Math.PI);
+                
+                // Color spectrum variants mapping shading directives given in criteria specs
+                let opacityColor = "#000";
+                if(a.side === 'red') {
+                    opacityColor = a.type === 'tank' ? '#7f0000' : a.type === 'soldier' ? '#d63031' : a.type === 'navy' ? '#ff7675' : '#ffaa99';
+                } else {
+                    opacityColor = a.type === 'tank' ? '#0c2461' : a.type === 'soldier' ? '#0984e3' : a.type === 'navy' ? '#74b9ff' : '#aaccff';
+                }
+
+                ctx.fillStyle = opacityColor;
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Text tag mapping structural size limits metrics info readout
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.fillText(Math.floor(a.size).toString(), a.x - 10, a.y - 10);
+            });
+        }
+
+        // Combat Mechanics & Algorithmic War Simulation Loop Pipeline Processing Sequence 
+        function updateSimulationStep() {
+            if (!isPlaying) return;
+
+            // 1. Kinetic Army movement progression toward targeted locations
+            armies.forEach(a => {
+                let dx = a.targetX - a.x;
+                let dy = a.targetY - a.y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                
+                if (dist > 2) {
+                    a.x += (dx / dist) * 1.5;
+                    a.y += (dy / dist) * 1.5;
+                }
+
+                // Push Frontline / Flip land cells over tracking indices values vector parameters
+                let gx = Math.floor(a.x / SCALE);
+                let gy = Math.floor(a.y / SCALE);
+                
+                if(gx >=0 && gx < cols && gy >= 0 && gy < rows) {
+                    // Capture dynamic footprint land territory if at war or moving through areas
+                    if(activeWars.length > 0 && a.countryId) {
+                        for(let i=-4; i<=4; i++) {
+                            for(let j=-4; j<=4; j++) {
+                                if(gx+i >= 0 && gx+i < cols && gy+j >= 0 && gy+j < rows) {
+                                    if(Math.random() < 0.4) {
+                                        grid[gx+i][gy+j].countryId = a.countryId;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 2. Engagement calculations (Clash computations if opponent circles overlap coordinates parameters)
+            if (gameRuleMode === 'simulation') {
+                for(let i = 0; i < armies.length; i++) {
+                    for(let j = i + 1; j < armies.length; j++) {
+                        let a1 = armies[i];
+                        let a2 = armies[j];
+
+                        if(a1.side !== a2.side) {
+                            let dist = Math.sqrt((a1.x - a2.x)**2 + (a1.y - a2.y)**2);
+                            if(dist < 25) { // Intersecting battle engagement thresholds metric bounds
+                                // Compute dynamic casualties values matching specifications parameters rules
+                                let damageFactorA = a1.type === 'tank' ? 8 : a1.type === 'soldier' ? 5 : 3;
+                                let damageFactorB = a2.type === 'tank' ? 8 : a2.type === 'soldier' ? 5 : 3;
+
+                                a1.size -= Math.random() * damageFactorB * 2;
+                                a2.size -= Math.random() * damageFactorA * 2;
+                                
+                                // visual dynamic pullback jitter representation simulating frontline pushes
+                                a1.x -= (a2.x - a1.x) * 0.05;
+                                a2.x += (a2.x - a1.x) * 0.05;
+                            }
+                        }
+                    }
+                }
+
+                // Cull spent division items matching low strength thresholds metrics arrays context parameters
+                armies = armies.filter(a => a.size > 50);
+            }
+
+            draw();
+        }
+
+        // Frame update ticking orchestration pipeline mapping loops sequence interval structures
+        setInterval(updateSimulationStep, 50);
+        
+        // Final presentation canvas print command
+        draw();
+    </script>
+</body>
+</html>
+
+```
