@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>War Strategy Map Game V1</title>
+<style>
+body { margin:0; font-family:Arial; background:#111; color:white; }
+#ui {
+  position:fixed; top:0; left:0; right:0;
+  background:#222; padding:8px;
+  display:flex; gap:8px; flex-wrap:wrap;
+  z-index:10;
+}
+button {
+  padding:6px 10px;
+  background:#444;
+  color:white;
+  border:0;
+  cursor:pointer;
+}
+button:hover { background:#666; }
+canvas { display:block; margin-top:50px; }
+</style>
+</head>
+<body>
+
+<div id="ui">
+<button onclick="setMode('terrain')">Terrain</button>
+<button onclick="setMode('city')">Cities</button>
+<button onclick="setMode('country')">Countries</button>
+<button onclick="setMap('political')">Political</button>
+<button onclick="setMap('terrain')">Terrain Map</button>
+<button onclick="setMap('population')">Population</button>
+<button onclick="setMap('gdp')">GDP</button>
+<button onclick="newCountry()">New Country</button>
+<button onclick="save()">Save</button>
+<button onclick="load()">Load</button>
+</div>
+
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight - 50;
+
+const SIZE = 20;
+const cols = Math.floor(canvas.width / SIZE);
+const rows = Math.floor(canvas.height / SIZE);
+
+let grid = [];
+let cities = [];
+let countries = [];
+
+let tool = "terrain";
+let mapMode = "terrain";
+let selectedCountry = null;
+
+function init() {
+  for (let y=0;y<rows;y++){
+    grid[y] = [];
+    for (let x=0;x<cols;x++){
+      grid[y][x] = {
+        terrain:"grass",
+        owner:null,
+        pop:0,
+        gdp:0
+      };
+    }
+  }
+}
+init();
+
+function setMode(m){ tool = m; }
+function setMap(m){ mapMode = m; draw(); }
+
+class Country {
+  constructor(name,color){
+    this.name = name;
+    this.color = color;
+    this.pop = 0;
+    this.gdp = 0;
+  }
+}
+
+function newCountry(){
+  let c = new Country(
+    "Country " + (countries.length+1),
+    randomColor()
+  );
+  countries.push(c);
+  selectedCountry = c;
+}
+
+function randomColor(){
+  return "hsl(" + Math.random()*360 + ",70%,50%)";
+}
+
+canvas.addEventListener("mousedown", e=>{
+  let x = Math.floor(e.clientX / SIZE);
+  let y = Math.floor((e.clientY-50) / SIZE);
+
+  if(!grid[y] || !grid[y][x]) return;
+
+  if(tool === "terrain"){
+    grid[y][x].terrain = "water";
+  }
+
+  if(tool === "city"){
+    cities.push({x,y,type:"city",pop:10000});
+    grid[y][x].pop += 10000;
+  }
+
+  if(tool === "country" && selectedCountry){
+    grid[y][x].owner = selectedCountry;
+  }
+
+  draw();
+});
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  for (let y=0;y<rows;y++){
+    for (let x=0;x<cols;x++){
+      let t = grid[y][x];
+
+      let color = "green";
+
+      if(t.terrain==="water") color="blue";
+
+      if(mapMode==="political"){
+        color = t.owner ? t.owner.color : "green";
+      }
+
+      if(mapMode==="population"){
+        let p = Math.min(t.pop/50000,1);
+        color = `rgb(${255*p},${255*(1-p)},0)`;
+      }
+
+      if(mapMode==="gdp"){
+        let g = Math.min(t.gdp/50000,1);
+        color = `rgb(0,${255*g},${255*(1-g)})`;
+      }
+
+      ctx.fillStyle = color;
+      ctx.fillRect(x*SIZE,y*SIZE,SIZE,SIZE);
+    }
+  }
+
+  for(let c of cities){
+    ctx.fillStyle="yellow";
+    ctx.beginPath();
+    ctx.arc(c.x*SIZE+10,c.y*SIZE+10,5,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+setInterval(draw,100);
+</script>
+
+</body>
+	</html>
