@@ -6,12 +6,16 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-canvas.width = window.innerWidth - 300;
-canvas.height = window.innerHeight;
+function resizeCanvas() {
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+}
 
-const TILE_SIZE = 25;
-const ROWS = Math.floor(canvas.height / TILE_SIZE);
-const COLS = Math.floor(canvas.width / TILE_SIZE);
+resizeCanvas();
+
+let TILE_SIZE = 25;
+let ROWS = Math.floor(canvas.height / TILE_SIZE);
+let COLS = Math.floor(canvas.width / TILE_SIZE);
 
 // =====================================================
 // GAME STATE
@@ -306,7 +310,7 @@ class Army {
 
         // Update tile owner if in creative mode
         if (gameState.gameMode === 'creative') {
-            const tile = gameState.tiles[this.y][this.x];
+            const tile = gameState.tiles[this.y] && gameState.tiles[this.y][this.x];
             if (tile && !tile.owner) {
                 tile.owner = this.country;
             }
@@ -379,12 +383,17 @@ function initializeGame() {
     gameState.countries.push(country1, country2);
 
     // Add sample capital cities
-    addCityAtTile(10, 10, 'capital', country1, 50000);
-    addCityAtTile(40, 30, 'capital', country2, 50000);
+    const cap1X = Math.floor(COLS * 0.25);
+    const cap1Y = Math.floor(ROWS * 0.5);
+    const cap2X = Math.floor(COLS * 0.75);
+    const cap2Y = Math.floor(ROWS * 0.5);
+
+    addCityAtTile(cap1X, cap1Y, 'capital', country1, 50000);
+    addCityAtTile(cap2X, cap2Y, 'capital', country2, 50000);
 
     // Add some other cities
-    addCityAtTile(15, 15, 'large', country1, 30000);
-    addCityAtTile(35, 20, 'medium', country2, 20000);
+    addCityAtTile(cap1X + 5, cap1Y + 5, 'large', country1, 30000);
+    addCityAtTile(cap2X - 5, cap2Y - 5, 'medium', country2, 20000);
 
     gameState.selectedCountry = country1;
     updateCountryInfo();
@@ -891,8 +900,9 @@ function gameLoop() {
 // =====================================================
 
 window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth - 300;
-    canvas.height = window.innerHeight;
+    resizeCanvas();
+    ROWS = Math.floor(canvas.height / TILE_SIZE);
+    COLS = Math.floor(canvas.width / TILE_SIZE);
 });
 
 initializeGame();
