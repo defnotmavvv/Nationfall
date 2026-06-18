@@ -1,165 +1,174 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<title>War Strategy Map Game V1</title>
-<style>
-body { margin:0; font-family:Arial; background:#111; color:white; }
-#ui {
-  position:fixed; top:0; left:0; right:0;
-  background:#222; padding:8px;
-  display:flex; gap:8px; flex-wrap:wrap;
-  z-index:10;
-}
-button {
-  padding:6px 10px;
-  background:#444;
-  color:white;
-  border:0;
-  cursor:pointer;
-}
-button:hover { background:#666; }
-canvas { display:block; margin-top:50px; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nationfall - War Strategy Game</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>Nationfall</h1>
+                <div class="mode-selector">
+                    <button class="mode-btn active" data-mode="map">Map Editor</button>
+                    <button class="mode-btn" data-mode="gameplay">Gameplay</button>
+                </div>
+            </div>
 
-<div id="ui">
-<button onclick="setMode('terrain')">Terrain</button>
-<button onclick="setMode('city')">Cities</button>
-<button onclick="setMode('country')">Countries</button>
-<button onclick="setMap('political')">Political</button>
-<button onclick="setMap('terrain')">Terrain Map</button>
-<button onclick="setMap('population')">Population</button>
-<button onclick="setMap('gdp')">GDP</button>
-<button onclick="newCountry()">New Country</button>
-<button onclick="save()">Save</button>
-<button onclick="load()">Load</button>
-</div>
+            <!-- MAP EDITOR PANEL -->
+            <div id="mapEditorPanel" class="panel active">
+                <div class="panel-section">
+                    <h3>Map Modes</h3>
+                    <select id="mapMode">
+                        <option value="terrain">Natural Terrain</option>
+                        <option value="population">Population Density</option>
+                        <option value="political">Political Map</option>
+                        <option value="gdp">GDP Map</option>
+                    </select>
+                </div>
 
-<canvas id="c"></canvas>
+                <div class="panel-section">
+                    <h3>Drawing Tools</h3>
+                    <div class="tool-group">
+                        <button class="tool-btn" data-tool="terrain" data-value="grass">Grass</button>
+                        <button class="tool-btn" data-tool="terrain" data-value="water">Water</button>
+                        <button class="tool-btn" data-tool="terrain" data-value="mountain">Mountain</button>
+                        <button class="tool-btn" data-tool="terrain" data-value="forest">Forest</button>
+                    </div>
+                    <div class="tool-group">
+                        <label>Brush Size: <input type="range" id="brushSize" min="5" max="50" value="15"></label>
+                    </div>
+                </div>
 
-<script>
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
+                <div class="panel-section">
+                    <h3>Cities & Capitals</h3>
+                    <div class="tool-group">
+                        <button class="tool-btn" data-tool="city" data-value="small">Small City</button>
+                        <button class="tool-btn" data-tool="city" data-value="medium">Medium City</button>
+                        <button class="tool-btn" data-tool="city" data-value="large">Large City</button>
+                        <button class="tool-btn" data-tool="city" data-value="capital">Capital</button>
+                    </div>
+                    <div class="tool-group">
+                        <label>Population: <input type="number" id="populationInput" value="10000"></label>
+                    </div>
+                </div>
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight - 50;
+                <div class="panel-section">
+                    <h3>Borders & Countries</h3>
+                    <div class="tool-group">
+                        <button class="tool-btn" data-tool="border">Draw Border</button>
+                        <button class="tool-btn" data-tool="eraser">Eraser</button>
+                    </div>
+                    <div class="tool-group">
+                        <label>Country Name: <input type="text" id="countryName" placeholder="Country name"></label>
+                        <button id="createCountryBtn">Create Country</button>
+                    </div>
+                </div>
 
-const SIZE = 20;
-const cols = Math.floor(canvas.width / SIZE);
-const rows = Math.floor(canvas.height / SIZE);
+                <div class="panel-section">
+                    <h3>Flags</h3>
+                    <div class="tool-group">
+                        <input type="text" id="flagName" placeholder="Flag name/colors">
+                        <button id="generateFlagBtn">Generate Flag</button>
+                        <label>Upload Flag: <input type="file" id="flagUpload" accept="image/*"></label>
+                    </div>
+                </div>
 
-let grid = [];
-let cities = [];
-let countries = [];
+                <div class="panel-section">
+                    <h3>Game Mode</h3>
+                    <select id="gameMode">
+                        <option value="creative">Creative Mode</option>
+                        <option value="simulation">Simulation Mode</option>
+                    </select>
+                </div>
 
-let tool = "terrain";
-let mapMode = "terrain";
-let selectedCountry = null;
+                <div class="panel-section">
+                    <button id="saveMapBtn">Save Map</button>
+                    <button id="loadMapBtn">Load Map</button>
+                    <button id="clearMapBtn">Clear All</button>
+                </div>
+            </div>
 
-function init() {
-  for (let y=0;y<rows;y++){
-    grid[y] = [];
-    for (let x=0;x<cols;x++){
-      grid[y][x] = {
-        terrain:"grass",
-        owner:null,
-        pop:0,
-        gdp:0
-      };
-    }
-  }
-}
-init();
+            <!-- GAMEPLAY PANEL -->
+            <div id="gameplayPanel" class="panel">
+                <div class="panel-section">
+                    <h3>Selected Country</h3>
+                    <div id="selectedCountryInfo">
+                        <p>Click a country on the map</p>
+                    </div>
+                </div>
 
-function setMode(m){ tool = m; }
-function setMap(m){ mapMode = m; draw(); }
+                <div class="panel-section" id="countryActionsSection" style="display:none;">
+                    <h3>Country Actions</h3>
+                    <div class="tool-group">
+                        <button id="rebellionBtn" class="action-btn">Create Rebellion</button>
+                        <button id="addPuppetBtn" class="action-btn">Add Puppet State</button>
+                        <button id="releasePuppetBtn" class="action-btn">Release Puppet</button>
+                        <button id="addAllyBtn" class="action-btn">Add Ally</button>
+                        <button id="makeAllianceBtn" class="action-btn">Make Alliance</button>
+                    </div>
+                </div>
 
-class Country {
-  constructor(name,color){
-    this.name = name;
-    this.color = color;
-    this.pop = 0;
-    this.gdp = 0;
-  }
-}
+                <div class="panel-section">
+                    <h3>War Management</h3>
+                    <div class="tool-group">
+                        <button id="declareWarBtn" class="action-btn">Declare War</button>
+                        <button id="callAlliesBtn" class="action-btn">Call Allies</button>
+                        <button id="makePeaceBtn" class="action-btn">Make Peace</button>
+                    </div>
+                </div>
 
-function newCountry(){
-  let c = new Country(
-    "Country " + (countries.length+1),
-    randomColor()
-  );
-  countries.push(c);
-  selectedCountry = c;
-}
+                <div class="panel-section">
+                    <h3>Armies</h3>
+                    <div class="tool-group">
+                        <label>Army Type: 
+                            <select id="armyType">
+                                <option value="infantry">Infantry</option>
+                                <option value="tank">Tank</option>
+                                <option value="navy">Navy</option>
+                                <option value="air">Air Force</option>
+                            </select>
+                        </label>
+                        <label>Numbers: <input type="number" id="armyNumbers" value="5000"></label>
+                        <button id="spawnArmyBtn" class="action-btn">Spawn Army</button>
+                    </div>
+                </div>
 
-function randomColor(){
-  return "hsl(" + Math.random()*360 + ",70%,50%)";
-}
+                <div class="panel-section">
+                    <div id="gameSpeedControl">
+                        <label>Game Speed: 
+                            <select id="gameSpeed">
+                                <option value="1">1x</option>
+                                <option value="2">2x</option>
+                                <option value="4">4x</option>
+                                <option value="8">8x</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-canvas.addEventListener("mousedown", e=>{
-  let x = Math.floor(e.clientX / SIZE);
-  let y = Math.floor((e.clientY-50) / SIZE);
+        <div class="main-content">
+            <canvas id="gameCanvas"></canvas>
+            <div class="info-panel">
+                <div id="mouseInfo">Coordinates: --</div>
+                <div id="tileInfo">Tile: --</div>
+            </div>
+        </div>
+    </div>
 
-  if(!grid[y] || !grid[y][x]) return;
+    <!-- MODALS -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div id="modal" class="modal">
+            <button class="modal-close">&times;</button>
+            <h2 id="modalTitle"></h2>
+            <div id="modalContent"></div>
+        </div>
+    </div>
 
-  if(tool === "terrain"){
-    grid[y][x].terrain = "water";
-  }
-
-  if(tool === "city"){
-    cities.push({x,y,type:"city",pop:10000});
-    grid[y][x].pop += 10000;
-  }
-
-  if(tool === "country" && selectedCountry){
-    grid[y][x].owner = selectedCountry;
-  }
-
-  draw();
-});
-
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  for (let y=0;y<rows;y++){
-    for (let x=0;x<cols;x++){
-      let t = grid[y][x];
-
-      let color = "green";
-
-      if(t.terrain==="water") color="blue";
-
-      if(mapMode==="political"){
-        color = t.owner ? t.owner.color : "green";
-      }
-
-      if(mapMode==="population"){
-        let p = Math.min(t.pop/50000,1);
-        color = `rgb(${255*p},${255*(1-p)},0)`;
-      }
-
-      if(mapMode==="gdp"){
-        let g = Math.min(t.gdp/50000,1);
-        color = `rgb(0,${255*g},${255*(1-g)})`;
-      }
-
-      ctx.fillStyle = color;
-      ctx.fillRect(x*SIZE,y*SIZE,SIZE,SIZE);
-    }
-  }
-
-  for(let c of cities){
-    ctx.fillStyle="yellow";
-    ctx.beginPath();
-    ctx.arc(c.x*SIZE+10,c.y*SIZE+10,5,0,Math.PI*2);
-    ctx.fill();
-  }
-}
-
-setInterval(draw,100);
-</script>
-
+    <script src="game.js"></script>
 </body>
-	</html>
+</html>
